@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Chef</title>
+    <style>
+        body {
+            background: url('{{ url_for('static', filename='Cyber_Chef_Background.png') }}') no-repeat center center fixed;
+            background-size: cover;
+            color: black; /* Adjust text color for readability on the new background */
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif; /* Or any other font you prefer */
+        }
+        .recipe-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .recipe-container img {
+            width: 100%;  /* Adjust width as necessary */
+            height: auto;
+            display: block;
+        }
+
+        .recipe-container .recipe-title {
+            position: absolute;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);  /* Semi-transparent background */
+            color:black;
+            width: 100%;
+            text-align: center;
+            padding: 5px 0;
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0s, opacity 0.5s linear;
+        }
+
+        .recipe-container:hover .recipe-title {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        header, nav, main, footer {
+            padding: 10px;
+        }
+        
+        nav form {
+            margin: 10px 0;
+        }
+
+        nav input[type=text] {
+            padding: 5px;
+        }
+
+        nav input[type=submit], .profile-button {
+            padding: 5px 15px;
+            background: rgba(255,255,255,0.8); /* Slightly transparent background */
+            border: none;
+            cursor: pointer;
+        }
+
+        footer {
+            position: absolute; 
+            bottom: 0; 
+            left: 0; 
+            z-index: 10;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        footer a {
+            color: black; /* Make sure this is visible on your background */
+        }
+
+        /* Add any additional styles here */
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Recipes</h1>
+    </header>
+
+    <nav>
+        <form method="POST" action="/home">
+            <input type="text" name="search_query" placeholder="Search for Recipes">
+            <input type="submit" value="Search">
+          
+            <a href="/my-profile" class="profile-button">My Profile</a>
+        </form>
+    </nav>
+
+    <main>
+        {% if recipes %}
+            <h2>Your results for "{{ search_query }}" are in!</h2>
+            <ul>
+                {% for recipe in recipes %}
+                    <li>
+                        <div class="recipe-container">
+                            <a href="{{ url_for('view_recipe', recipe_id=recipe.id, search_query=search_query) }}">
+                                {% if recipe.image %}
+                                    <img src="{{ recipe.image }}" alt="{{ recipe.title }}">
+                                {% endif %}
+                            </a>
+                            <span class="recipe-title">{{ recipe.title }}</span>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Are you sure that's food?</p>
+        {% endif %}
+    </main>
+
+    <!-- Footer with Logout Option -->
+    <footer>
+        <a href="/logout">Logout</a>
+    </footer>
+</body>
+</html>

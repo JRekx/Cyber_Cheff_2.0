@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ user.username }}'s Profile</title>
+    <style>
+
+        body {
+            background: url('{{ url_for('static', filename='Cyber_Chef_Background.png') }}') no-repeat center center fixed;
+            background-size: cover;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif; /* Or any other font you prefer */
+            color: #333; /* Color for readability */
+        }
+
+        .container {
+            display: flex;
+        }
+
+        .virtual-fridge, .search-results {
+            flex: 1;
+            margin: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: lightblue;
+            opacity: 1;
+        }
+        .search-results {
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-gap: 10px;
+        }
+        .search-item, .fridge-item {
+            border: 1px solid #ccc;
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        .fridge-ingredients {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* 3 columns grid */
+            grid-gap: 10px; /* Space between grid items */
+            max-height: 270px; /* Height to display 3 items before scrolling */
+            overflow-y: auto; /* Enable vertical scrolling */
+            padding: 10px;
+        }
+        
+        .fridge-item {
+            margin: 0; /* Reset margin for grid alignment */
+            text-align: center; /* Centers text below the image */
+        }
+
+        .fridge-item img {
+            width: 90px; /* Set width to 90px */
+            height: 90px; /* Set height to 90px */
+            object-fit: cover; /* Ensure the image covers the area without distortion */
+        }
+
+        .fridge-item .ingredient-info {
+            margin-top: 5px; /* Space between image and text */
+        }
+
+        .fridge-item form {
+            margin-top: 5px; /* Space between text and button */
+        }
+        /* Ensure content is inside a container for proper padding */
+        .content {
+            padding: 20px;
+            max-width: 1200px; /* Or any max-width you prefer */
+            margin: auto; /* Centers the content */
+        }
+        .recipe-container {
+            overflow-x: auto; /* Enables horizontal scrolling */
+            white-space: nowrap; /* Ensures that the items are in a single line */
+            padding: 10px 0;
+            width: 380px; /* Adjusted to fit exactly 4 recipes */
+        }
+
+        .recipe {
+            position: relative;
+            display: inline-block; /* Keep as inline-block */
+            margin-right: 10px; /* Adds space between items */
+            width: 90px; /* Width of each recipe */
+        }
+
+        .recipe img {
+            width: 100%;  /* Makes the image take the full width of the container */
+            height: auto; /* Maintains the aspect ratio of the image */
+        }
+
+        .recipe .title-overlay {
+            visibility: hidden;
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent background */
+            color: white;
+            text-align: center;
+            padding: 5px 0;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .recipe:hover .title-overlay {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+<body>
+
+    <!-- Flash Messages -->
+    {% for message in get_flashed_messages(category_filter=["danger"]) %}
+        <div class="alert alert-danger">
+            {{ message }}
+        </div>
+    {% endfor %}
+
+
+
+    <h1>Welcome, {{ user.username }}</h1>
+
+    <!-- Virtual Fridge Section -->
+
+    <section class="container">
+        <!-- Virtual Fridge Section -->
+        <div class="virtual-fridge">
+            <h2>Virtual Fridge</h2>
+            {% if fridge_ingredients %}
+                <div class="fridge-ingredients">
+                    {% for item in fridge_ingredients %}
+                        <div class="fridge-item">
+                            <img src="https://spoonacular.com/cdn/ingredients_90x90/{{ item.ingredient_id }}.jpg" alt="{{ item.ingredient }}">
+                            <div class="ingredient-info">
+                                <span>{{ item.ingredient }}</span><br>
+                                <span>Qty: {{ item.quantity }}</span><br>
+                                <span>Expires: {{ item.expiry_date.strftime('%Y-%m-%d') if item.expiry_date else 'N/A' }}</span>
+                            </div>
+                            <form method="post" action="{{ url_for('delete_ingredient', ingredient_id=item.fridge_id) }}">
+                                <input type="submit" value="Delete Ingredient">
+                            </form>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p>Your virtual fridge is empty.</p>
+            {% endif %}
+        </div>
+
+        <!-- Search Results Section -->
+        <div class="search-results">
+            <h2>Search Results</h2>
+            <form method="post" action="{{ url_for('search_ingredients') }}">
+                <input type="text" name="ingredient_search" placeholder="Search for ingredients...">
+                <input type="submit" value="Search">
+            </form>
+            {% if search_results %}
+                {% for result in search_results %}
+                    <div class="search-item">
+                        <img src="https://spoonacular.com/cdn/ingredients_90x90/{{ result.id }}.jpg" alt="{{ result.name }}">
+                        <div>
+                            <span>{{ result.name }}</span><br>
+                            <!-- Form to add ingredient to fridge -->
+                            <form method="post" action="{{ url_for('add_to_fridge', id=result.id) }}">
+                                <input type="text" name="quantity" placeholder="Quantity">
+                                <input type="submit" value="Add to Fridge">
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No ingredients found.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Saved Recipes Section -->
+    <section>
+        <h2>Saved Recipes</h2>
+        {% if saved_recipes %}
+            <div class="recipe-container">
+                {% for recipe in saved_recipes %}
+                    <div class="recipe">
+                        <a href="{{ url_for('view_recipe', recipe_id=recipe.recipe_id) }}">
+                            <img src="{{ recipe.image_url }}" alt="{{ recipe.recipe_name }}">
+                            <span class="title-overlay">{{ recipe.recipe_name }}</span>
+                        </a>
+                        <form method="post" action="{{ url_for('delete_recipe', recipe_id=recipe.recipe_id) }}">
+                            <input type="submit" value="Delete Recipe">
+                        </form>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>No saved recipes yet.</p>
+        {% endif %}
+    </section>
+
+    <!-- Recommended Recipes Section -->
+    <section>
+        <h2>Recommended Recipes</h2>
+        {% if recommended_recipes %}
+            <ul>
+                {% for recipe in recommended_recipes %}
+                    <li class="recipe">
+                        <a href="{{ url_for('view_recipe', recipe_id=recipe.id) }}">
+                            <img src="{{ recipe.image }}" alt="{{ recipe.title }}">
+                            <span class="title-overlay">{{ recipe.title }}</span>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No recommendations available.</p>
+        {% endif %}
+    </section>
+
+    <!-- Footer with Logout Option -->
+    <footer>
+        <a href="/home"><button>Back to Home</button></a>
+        <a href="/logout">Logout</a>
+    </footer>
+</body>
+</html>
+
