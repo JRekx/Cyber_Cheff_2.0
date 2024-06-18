@@ -1,13 +1,34 @@
+"""
+wsgi.py - CyberCheff
+
+This application allows users to:
+- Register and log in.
+- Manage a virtual fridge with ingredients.
+- Search for recipes using the Spoonacular API.
+- Save and delete recipes.
+- Add ingredients to the virtual fridge from search results.
+- View recommended recipes based on the ingredients in the virtual fridge.
+
+Dependencies:
+- Flask
+- Flask_SQLAlchemy
+- Flask_WTF
+- Requests
+- Werkzeug
+
+Ensure to configure the SECRET_KEY and SQLALCHEMY_DATABASE_URI with appropriate values.
+"""
+
+
+
+
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 import requests
-from urllib.parse import unquote
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, Length, Email
-from datetime import datetime
+from wtforms.validators import DataRequired, Length
 from werkzeug.security import generate_password_hash, check_password_hash
-
 
 # Initialize SQLAlchemy without an app
 db = SQLAlchemy()
@@ -45,6 +66,8 @@ class VirtualFridge(db.Model):
     expiry_date = db.Column(db.Date)
     ingredient = db.Column(db.String(255))  
     ingredient_id = db.Column(db.Integer)
+    ingredient_name = db.Column(db.String(255))  # New field for ingredient name
+    image_url = db.Column(db.String(500))  # New field for image URL
 
 # Forms for user registration and login
 class RegistrationForm(FlaskForm):
@@ -57,12 +80,11 @@ class LoginForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])
     submit = SubmitField('Login')
 
-
 # Spoonacular API Key
 API_KEY = '15599c84fad84a0f9a160bc14e9ea4d6'
 
 def search_recipes(query):
-    url = f'https://api.spoonacular.com/recipes/complexSearch'
+    url = 'https://api.spoonacular.com/recipes/complexSearch'
     params = {
         'apiKey': API_KEY,
         'query': query,
@@ -77,7 +99,7 @@ def search_recipes(query):
 # Application Factory
 def create_app():
     app = Flask(__name__)
-    app.config['SECRET_KEY'] = 'your_secret_key'  # Replace with your secret key
+    app.config['SECRET_KEY'] = 'your_secret_key'  
     app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:1826@localhost/spoonacular_app'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -87,7 +109,6 @@ def create_app():
         db.create_all()
 
     # Define routes
-
     @app.route('/', methods=['GET'])
     def root():
         return render_template('front_page.html')
@@ -96,17 +117,13 @@ def create_app():
     def login():
         form = LoginForm()
         if form.validate_on_submit():
-            # Assuming users are identified by email, change this line to match your User model
             user = User.query.filter_by(username=form.username.data).first()
             if user and check_password_hash(user.password, form.password.data):
                 session['user_id'] = user.user_id
-                print("Login successful, user_id:", session['user_id'])  # Debug print
                 return redirect(url_for('home'))
             else:
-                print("Login failed")  # Debug print
-                flash('Login Unsuccessful. Please check email and password', 'danger')
+                flash('Login Unsuccessful. Please check username and password', 'danger')
         return render_template('login.html', form=form)
-
 
     @app.route('/register', methods=['GET', 'POST'])
     def register():
@@ -130,22 +147,17 @@ def create_app():
 
         return render_template('register.html', form=form)
 
-
-
     @app.route('/home', methods=['GET', 'POST'])
     def home():
-        # Check if user is logged in
         if 'user_id' not in session:
             flash('Please log in to access this page', 'info')
             return redirect(url_for('login'))
 
         if request.method == 'POST':
-            # Handle POST request when the user submits a search query
             query = request.form.get('search_query', '')
             recipes = search_recipes(query)
             return render_template('home.html', recipes=recipes, search_query=query)
 
-        # Handle GET request
         search_query = request.args.get('search_query', '')
         recipes = search_recipes(search_query) if search_query else []
         return render_template('home.html', recipes=recipes, search_query=search_query)
@@ -162,30 +174,21 @@ def create_app():
         else:
             return "Recipe not found", 404
 
-
     @app.route('/save_recipe/<int:recipe_id>', methods=['POST'])
     def save_recipe(recipe_id):
         user_id = session.get('user_id')
         if not user_id:
-            # Handle not logged in user, maybe redirect to login page
             return redirect(url_for('login'))
 
-        # Check if the recipe is already saved
         existing_recipe = SavedRecipe.query.filter_by(user_id=user_id, recipe_id=recipe_id).first()
         if existing_recipe:
-            # Handle the case where the recipe is already saved
-            # For example, you might want to inform the user or redirect them
             return redirect(url_for('my_profile'))  
         else:
-            # Logic to save the new recipe
             new_saved_recipe = SavedRecipe(user_id=user_id, recipe_id=recipe_id)
             db.session.add(new_saved_recipe)
             db.session.commit()
-
-            # Redirect to the user's profile or another appropriate page
             return redirect(url_for('my_profile'))
 
-        # Optionally, add a generic return statement here for safety
         return redirect(url_for('home'))
 
     @app.route('/search_ingredients', methods=['POST'])
@@ -200,12 +203,11 @@ def create_app():
         if response.status_code == 200:
             search_results = response.json().get('results', [])
             return render_template('my_profile.html', user=User.query.get(user_id),
-                                fridge_ingredients=VirtualFridge.query.filter_by(user_id=user_id).all(),
-                                search_results=search_results)
+                                   fridge_ingredients=VirtualFridge.query.filter_by(user_id=user_id).all(),
+                                   search_results=search_results)
         else:
             flash('Failed to fetch ingredients.', 'danger')
             return redirect(url_for('my_profile'))
-
 
     @app.route('/add_to_fridge/<int:id>', methods=['POST'])
     def add_to_fridge(id):
@@ -216,23 +218,33 @@ def create_app():
         quantity = request.form.get('quantity')
         url = f"https://api.spoonacular.com/food/ingredients/{id}/information?apiKey={API_KEY}"
 
-        # Check if the ingredient already exists in the fridge
-        existing_ingredient = VirtualFridge.query.filter_by(user_id=user_id, ingredient_id=id).first()
-        if existing_ingredient:
-            # Update quantity if ingredient already exists
-            existing_ingredient.quantity = quantity  # or adjust quantity as needed
-            db.session.commit()
+        response = requests.get(url)
+        if response.status_code == 200:
+            ingredient_data = response.json()
+            ingredient_name = ingredient_data['name']
+            image_url = f"https://spoonacular.com/cdn/ingredients_100x100/{ingredient_data['image']}"
+
+            existing_ingredient = VirtualFridge.query.filter_by(user_id=user_id, ingredient_id=id).first()
+            if existing_ingredient:
+                existing_ingredient.quantity = quantity
+                db.session.commit()
+            else:
+                new_ingredient = VirtualFridge(
+                    user_id=user_id,
+                    ingredient_id=id,
+                    quantity=quantity,
+                    ingredient=ingredient_name,
+                    ingredient_name=ingredient_name,
+                    image_url=image_url
+                )
+                db.session.add(new_ingredient)
+                db.session.commit()
+
+            flash('Ingredient added to fridge.', 'success')
         else:
-            # Add new ingredient to fridge
-            new_ingredient = VirtualFridge(user_id=user_id, ingredient_id=id, quantity=quantity)
-            db.session.add(new_ingredient)
-            db.session.commit()
+            flash('Failed to fetch ingredient data.', 'danger')
 
-        flash('Ingredient added to fridge.', 'success')
         return redirect(url_for('my_profile'))
-
-
-
 
     @app.route('/my-profile')
     def my_profile():
@@ -249,8 +261,6 @@ def create_app():
         saved_recipes = SavedRecipe.query.filter_by(user_id=user_id).all()
         for recipe in saved_recipes:
             recipe.image_url = f"https://spoonacular.com/recipeImages/{recipe.recipe_id}-90x90.jpg"
-
-            # Fetching the summary from Spoonacular API
             summary_url = f"https://api.spoonacular.com/recipes/{recipe.recipe_id}/summary?apiKey={API_KEY}"
             response = requests.get(summary_url)
             if response.status_code == 200:
@@ -261,10 +271,10 @@ def create_app():
         recommended_recipes = get_recommended_recipes(fridge_ingredients)
         
         return render_template('my_profile.html', 
-                            user=user,
-                            saved_recipes=saved_recipes, 
-                            fridge_ingredients=fridge_ingredients, 
-                            recommended_recipes=recommended_recipes)
+                               user=user,
+                               saved_recipes=saved_recipes, 
+                               fridge_ingredients=fridge_ingredients, 
+                               recommended_recipes=recommended_recipes)
 
     @app.route('/delete_recipe/<int:recipe_id>', methods=['POST'])
     def delete_recipe(recipe_id):
@@ -300,11 +310,10 @@ def create_app():
 
         return redirect(url_for('my_profile'))
 
-
-
-
     def get_recommended_recipes(ingredients):
-        ingredient_names = ','.join([ingredient.ingredient for ingredient in ingredients])
+        ingredient_names = ','.join([ingredient.ingredient for ingredient in ingredients if ingredient.ingredient is not None])
+        if not ingredient_names:
+            return []
         url = f'https://api.spoonacular.com/recipes/findByIngredients?ingredients={ingredient_names}&number=5&apiKey={API_KEY}'
         response = requests.get(url)
         if response.status_code == 200:
@@ -312,7 +321,6 @@ def create_app():
             return [{'title': recipe['title'], 'id': recipe['id'], 'image': f"https://spoonacular.com/recipeImages/{recipe['id']}-90x90.jpg"} for recipe in recipes]
         else:
             return []
-
 
     return app
 
